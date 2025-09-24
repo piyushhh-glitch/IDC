@@ -120,7 +120,11 @@ const Dropzone: React.FC<DropzoneProps> = ({ onDrop, accept, title, description,
         <div className="flex flex-col items-center justify-center">
             <UploadIcon className="w-12 h-12 text-[--text]/60" />
             <h3 className="mt-4 text-xl font-semibold text-[--text]">{title}</h3>
-            <p className="mt-2 text-sm text-[--text]/70 max-w-xs">{description}</p>
+            <div className="mt-2 text-sm text-[--text]/70 max-w-xs">
+              {description.split('•').map((line, index) => (
+                <span key={index} className="block">{line.trim()}</span>
+              ))}
+            </div>
             <div className="mt-6 flex items-center space-x-4">
                 <button
                     onClick={(e) => { e.stopPropagation(); onButtonClick(); }}
