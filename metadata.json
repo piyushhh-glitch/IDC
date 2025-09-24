@@ -1,5 +1,5 @@
 {
-  "name": "Pixelgaurd",
+  "name": "PixelGaurd",
   "description": "An advanced deepfake detection platform to analyze images and videos for potential manipulation using state-of-the-art AI models.",
   "requestFramePermissions": []
 }

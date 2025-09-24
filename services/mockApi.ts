@@ -1,5 +1,4 @@
-
-import { AnalysisResult } from '../types';
+import { AnalysisResult, IndividualAnalysis } from '../types';
 
 const resultsStore: Map<string, AnalysisResult> = new Map();
 
@@ -14,22 +13,7 @@ const simpleHash = (str: string) => {
   return Math.abs(hash);
 };
 
-const generateHeatmapData = (hash: number): string => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 8;
-    canvas.height = 8;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-
-    for (let i = 0; i < 8; i++) {
-        for (let j = 0; j < 8; j++) {
-            const intensity = ((hash * (i+1) * (j+1)) % 255);
-            ctx.fillStyle = `rgba(220, 38, 38, ${intensity / 255})`;
-            ctx.fillRect(j, i, 1, 1);
-        }
-    }
-    return canvas.toDataURL();
-}
+const services = ['Reality Defender', 'Sensity AI', 'Gemini AI'];
 
 export const analyzeMedia = async (mediaFiles: File[], referenceImage?: File): Promise<AnalysisResult> => {
   return new Promise((resolve) => {
@@ -37,34 +21,57 @@ export const analyzeMedia = async (mediaFiles: File[], referenceImage?: File): P
       const firstFile = mediaFiles[0];
       const hash = simpleHash(firstFile.name + firstFile.size);
 
-      const confidence = hash % 101;
-      const isDeepfake = confidence > 60;
+      const individualAnalyses: IndividualAnalysis[] = services.map((service, index) => {
+        const serviceHash = simpleHash(firstFile.name + service);
+        const isSensity = service === 'Sensity AI';
+        // Make Sensity AI more likely to be authentic, and others deepfake
+        const isDeepfake = isSensity ? (serviceHash % 5 === 0) : (serviceHash % 4 !== 0);
+
+        let confidence;
+        if (isDeepfake) {
+          confidence = 75 + (serviceHash % 25); // 75-99 for deepfakes
+        } else {
+          confidence = 80 + (serviceHash % 15); // 80-94 for authentic
+        }
+
+        return {
+          serviceName: service,
+          label: isDeepfake ? 'Deepfake Detected' : 'Authentic',
+          confidence: confidence,
+          explanation: isDeepfake 
+            ? `[${service}] Analysis detected inconsistencies in facial landmarks and lighting that suggest digital manipulation.`
+            : `[${service}] All authenticity checks passed. The media appears to be genuine with natural artifacts.`,
+        };
+      });
+
+      const deepfakeVotes = individualAnalyses.filter(r => r.label === 'Deepfake Detected').length;
+      
+      let collectiveConfidenceValue = 0;
+      if (deepfakeVotes > individualAnalyses.length / 2) {
+          collectiveConfidenceValue = 60 + (hash % 15);
+      } else {
+          collectiveConfidenceValue = 30 + (hash % 20);
+      }
+
+      let consensus: 'Likely Deepfake' | 'Likely Authentic' | 'Inconclusive' = 'Inconclusive';
+      if (deepfakeVotes >= 2) {
+        consensus = 'Likely Deepfake';
+      } else if (deepfakeVotes === 0) {
+        consensus = 'Likely Authentic';
+      }
       
       const result: AnalysisResult = {
         id: `job_${Date.now()}_${hash}`,
-        flag: isDeepfake,
-        label: isDeepfake ? 'Deepfake' : 'Authentic',
-        confidence: confidence,
-        explanation: isDeepfake ? 'Motion artifacts and unusual lighting detected.' : 'Consistent lighting and natural movement patterns observed.',
-        mediaType: firstFile.type.startsWith('video') ? 'video' : 'image',
-        heatmap: firstFile.type.startsWith('image') ? {
-          type: 'raster',
-          data: generateHeatmapData(hash),
-          boxes: null,
-        } : {
-          type: 'boxes',
-          data: null,
-          boxes: Array.from({ length: hash % 4 }).map((_, i) => ({
-              x: (hash * (i+1) * 0.1) % 1,
-              y: (hash * (i+1) * 0.2) % 1,
-              w: 0.1 + ((hash * (i+1) * 0.05) % 0.1),
-              h: 0.1 + ((hash * (i+1) * 0.07) % 0.1),
-              score: 0.6 + ((hash * (i+1) * 0.01) % 0.4)
-          })),
+        analysisDetails: {
+          processingMs: 4220 + (hash % 2000),
+          facesDetected: (hash % 5) + (referenceImage ? 1 : 0),
+          resolution: '1920x1080',
         },
-        processingMs: 3130 + (hash % 2000),
-        facesDetected: (hash % 5) + (referenceImage ? 1 : 0),
-        resolution: '1920x1080',
+        collectiveConfidence: {
+          confidence: collectiveConfidenceValue,
+          consensus: consensus,
+        },
+        individualAnalyses,
       };
       
       resultsStore.set(result.id, result);
